@@ -6,7 +6,7 @@ const obtenerUsuarios = async (req, res) => {
 
     try {
 
-        const usuarios = await Usuario.findAll({
+        const usuarios = await usuarioService.obtenerUsuarios({
             where: {
                 estado: true
             },

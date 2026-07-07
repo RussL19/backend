@@ -20,6 +20,25 @@ const login = async (req, res) => {
 
 };
 
+const register = async (req, res) => {
+
+    try {
+
+        const respuesta = await authService.register(req.body);
+
+        res.status(201).json(respuesta);
+
+    } catch (error) {
+
+        res.status(400).json({
+            mensaje: error.message
+        });
+
+    }
+
+};
+
 module.exports = {
-    login
+    login,
+    register
 };

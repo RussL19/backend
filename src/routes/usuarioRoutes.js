@@ -16,6 +16,8 @@ router.get("/", verificarToken, obtenerUsuarios);
 
 router.get("/:id", verificarToken, obtenerUsuarioPorId);
 
+router.get("/:id", verificarToken, obtenerUsuarios);
+
 router.post("/", verificarToken, crearUsuario);
 
 router.put("/:id", verificarToken, actualizarUsuario);

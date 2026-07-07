@@ -55,6 +55,17 @@ const obtenerUsuarioPorId = async (id) => {
     return usuario;
 };
 
+const obtenerUsuarios = async () => {
+
+    const usuarios = await Usuario.findAll({
+        attributes: {
+            exclude: ["password_hash"]
+        }
+    });
+
+    return usuarios;
+};
+
 const actualizarUsuario = async (id, datosUsuario) => {
 
     const usuario = await Usuario.findByPk(id);
@@ -85,12 +96,25 @@ const actualizarUsuario = async (id, datosUsuario) => {
         throw new Error("El nombre de usuario ya existe.");
     }
 
-    await usuario.update({
-        nombre_usuario: datosUsuario.nombre_usuario,
-        correo: datosUsuario.correo,
-        estado: datosUsuario.estado,
-        id_rol: datosUsuario.id_rol
-    });
+    const datosActualizar = {};
+
+if (datosUsuario.nombre_usuario !== undefined) {
+    datosActualizar.nombre_usuario = datosUsuario.nombre_usuario;
+}
+
+if (datosUsuario.correo !== undefined) {
+    datosActualizar.correo = datosUsuario.correo;
+}
+
+if (datosUsuario.estado !== undefined) {
+    datosActualizar.estado = datosUsuario.estado;
+}
+
+if (datosUsuario.id_rol !== undefined) {
+    datosActualizar.id_rol = datosUsuario.id_rol;
+}
+
+await usuario.update(datosActualizar);
 
     return usuario;
 
@@ -114,6 +138,7 @@ const eliminarUsuario = async (id) => {
 module.exports = {
     crearUsuario,
     obtenerUsuarioPorId,
+    obtenerUsuarios,
     actualizarUsuario,
     eliminarUsuario
 };
