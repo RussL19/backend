@@ -2,25 +2,22 @@ const Usuario = require("../models/Usuario");
 const usuarioService = require("../services/usuarioService");
 
 // Obtener usuarios
-const obtenerUsuarios = async (req, res) => {
+const obtenerUsuarios = async (req,res)=>{
 
-    try {
+    try{
 
-        const usuarios = await usuarioService.obtenerUsuarios({
-            where: {
-                estado: true
-            },
-            attributes: {
-                exclude: ["password_hash"]
-            }
-        });
+        const page = parseInt(req.query.page) || 1;
 
-        res.json(usuarios);
+        const limit = parseInt(req.query.limit) || 10;
 
-    } catch (error) {
+        const datos = await usuarioService.obtenerUsuarios(page,limit);
+
+        res.json(datos);
+
+    }catch(error){
 
         res.status(500).json({
-            mensaje: error.message
+            mensaje:error.message
         });
 
     }

@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Usuario = require("../models/Usuario");
-
+const nodemailer=require("nodemailer");
 const login = async (correo, password) => {
 
     const usuario = await Usuario.findOne({
@@ -98,11 +98,149 @@ const register = async (datos) => {
 
 };
 
+const transporter = nodemailer.createTransport({
 
+    service:"gmail",
+
+    auth:{
+        user:process.env.EMAIL_USER,
+        pass:process.env.EMAIL_PASS
+    }
+
+});
+
+const recuperarPassword = async(correo)=>{
+
+    const usuario=await Usuario.findOne({
+        where:{correo}
+    });
+
+    if(!usuario){
+
+        throw new Error("No existe un usuario con ese correo.");
+
+    }
+
+    const token=jwt.sign(
+
+        {id_usuario:usuario.id_usuario},
+
+        process.env.JWT_SECRET,
+
+        {expiresIn:"15m"}
+
+    );
+
+    usuario.reset_token=token;
+
+    usuario.reset_expira=new Date(Date.now()+15*60*1000);
+
+    await usuario.save();
+
+    const enlace=`${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+
+        from:process.env.EMAIL_USER,
+
+        to:usuario.correo,
+
+        subject:"Recuperar contraseña",
+
+        html:`
+
+        <div style="font-family:Arial;padding:30px">
+
+            <h2>Sistema Gestión de Activos</h2>
+
+            <p>Hola ${usuario.nombre_usuario}</p>
+
+            <p>Haz clic en el siguiente botón para cambiar tu contraseña.</p>
+
+            <a
+                href="${enlace}"
+                style="
+                    background:#2563eb;
+                    color:white;
+                    padding:12px 25px;
+                    text-decoration:none;
+                    border-radius:6px;
+                "
+            >
+                Restablecer contraseña
+            </a>
+
+            <p>Este enlace expirará en 15 minutos.</p>
+
+        </div>
+
+        `
+
+    });
+
+};
+
+const resetPassword=async(token,password)=>{
+
+    let payload;
+
+    try{
+
+        payload=jwt.verify(
+
+            token,
+
+            process.env.JWT_SECRET
+
+        );
+
+    }catch{
+
+        throw new Error("Token inválido.");
+
+    }
+
+    const usuario=await Usuario.findByPk(
+
+        payload.id_usuario
+
+    );
+
+    if(!usuario){
+
+        throw new Error("Usuario no encontrado.");
+
+    }
+
+    if(usuario.reset_token!==token){
+
+        throw new Error("Token inválido.");
+
+    }
+
+    if(new Date(usuario.reset_expira)<new Date()){
+
+        throw new Error("El enlace expiró.");
+
+    }
+
+    usuario.password_hash=await bcrypt.hash(password,10);
+
+    usuario.reset_token=null;
+
+    usuario.reset_expira=null;
+
+    await usuario.save();
+
+    return true;
+
+};
 
 module.exports = {
     login,
-    register
+    register,
+    recuperarPassword,
+    resetPassword
 };
 
 

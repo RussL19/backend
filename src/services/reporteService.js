@@ -48,6 +48,18 @@ const activosMantenimiento=()=>{
 
 };
 
+const activosBaja = () => {
+
+    return Activo.count({
+
+        where: {
+            estado: "Baja"
+        }
+
+    });
+
+};
+
 const totalUsuarios=()=>{
 
     return Usuario.count({
@@ -76,19 +88,21 @@ const dashboard=async()=>{
 
     return{
 
-        activos:await totalActivos(),
+        activos: await totalActivos(),
 
-        disponibles:await activosDisponibles(),
+        disponibles: await activosDisponibles(),
 
-        asignados:await activosAsignados(),
+        asignados: await activosAsignados(),
 
-        mantenimiento:await activosMantenimiento(),
+        mantenimiento: await activosMantenimiento(),
 
-        usuarios:await totalUsuarios(),
+        baja: await activosBaja(),
 
-        empleados:await totalEmpleados(),
+        usuarios: await totalUsuarios(),
 
-        mantenimientos:await totalMantenimientos()
+        empleados: await totalEmpleados(),
+
+        mantenimientos: await totalMantenimientos()
 
     };
 

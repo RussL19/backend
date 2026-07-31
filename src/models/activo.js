@@ -73,4 +73,6 @@ const Activo = sequelize.define(
   }
 );
 
+
+
 module.exports = Activo;

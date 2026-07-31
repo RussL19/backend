@@ -35,8 +35,15 @@ const Usuario = sequelize.define(
         id_rol: {
             type: DataTypes.INTEGER,
             allowNull: false
-        }
-    },
+        },
+        reset_token: {
+             type: DataTypes.STRING
+        },
+
+        reset_expira: {
+            type: DataTypes.DATE
+        },
+        },
     {
         tableName: "usuarios",
         timestamps: false

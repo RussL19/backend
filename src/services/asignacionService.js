@@ -11,82 +11,62 @@ const crearAsignacion = async (datos) => {
 
     try {
 
-        // código aquí
+        const activo = await Activo.findByPk(
+            datos.id_activo,
+            { transaction }
+        );
+
+        if (!activo) {
+            throw new Error("Activo no encontrado.");
+        }
+
+        const empleado = await Empleado.findByPk(
+            datos.id_empleado,
+            { transaction }
+        );
+
+        if (!empleado) {
+            throw new Error("Empleado no encontrado.");
+        }
+
+        const asignacion = await Asignacion.create(
+            {
+                id_activo: datos.id_activo,
+                id_empleado: datos.id_empleado,
+                fecha_asignacion: new Date(),
+                estado: "Asignado"
+            },
+            { transaction }
+        );
+
+        await activo.update(
+            {
+                estado: "Asignado"
+            },
+            { transaction }
+        );
+
+        await HistorialMovimiento.create(
+            {
+                id_activo: activo.id_activo,
+                tipo_movimiento: "Asignacion",
+                detalle: `Asignado a ${empleado.nombre} ${empleado.apellido}`
+            },
+            { transaction }
+        );
 
         await transaction.commit();
+
+        return asignacion;
 
     } catch (error) {
 
         await transaction.rollback();
+        console.error(error.message);
 
         throw error;
 
     }
-
-    const activo = await Activo.findByPk(
-        datos.id_activo,
-        { transaction }
-    );
-
-    if (!activo) {
-
-        throw new Error("Activo no encontrado.");
-
-    }
-
-    const empleado = await Empleado.findByPk(
-        datos.id_empleado,
-        { transaction }
-    );
-
-    if (!empleado) {
-
-        throw new Error("Empleado no encontrado.");
-
-    }
-
-    const asignacion = await Asignacion.create(
-
-        datos,
-
-        {
-            transaction
-        }
-
-    );
-
-    await activo.update(
-
-        {
-            estado: "Asignado"
-        },
-
-        {
-            transaction
-        }
-
-    );
-
-    await HistorialMovimiento.create(
-
-        {
-
-            id_activo: activo.id_activo,
-
-            tipo_movimiento: "Asignacion",
-
-            detalle:
-                `Asignado a ${empleado.nombre} ${empleado.apellido}`
-
-        },
-
-        {
-            transaction
-        }
-
-    );
-
-    await transaction.commit();
 
 };
 
@@ -95,6 +75,9 @@ const crearAsignacion = async (datos) => {
 const obtenerAsignaciones = async () => {
 
     return await Asignacion.findAll({
+        where: {
+            estado: "Asignado"
+        },
 
         include: [
 
@@ -155,49 +138,53 @@ const devolverActivo = async (id) => {
 
         const asignacion = await Asignacion.findByPk(id, { transaction });
 
-        if (!asignacion)
+        if (!asignacion) {
             throw new Error("Asignación no encontrada.");
+        }
 
-        const activo = await Activo.findByPk(
-            asignacion.id_activo,
-            { transaction }
-        );
+        const activo = await Activo.findByPk(asignacion.id_activo, { transaction });
+
+        
+
+        if (!activo) {
+            throw new Error("Activo no encontrado.");
+        }
 
         await activo.update(
+            { estado: "Disponible" },
+            { transaction }
+        );
+
+        
+
+        await HistorialMovimiento.create(
             {
-                estado: "Disponible"
+                id_activo: activo.id_activo,
+                tipo_movimiento: "Devolucion",
+                fecha: new Date(),
+                detalle: "Activo devuelto."
             },
             { transaction }
         );
 
-        await HistorialMovimiento.create(
+        
 
+        await asignacion.update(
             {
-
-                id_activo: activo.id_activo,
-
-                tipo_movimiento: "Devolucion",
-
-                detalle: "Activo devuelto."
-
+                estado: "Devuelto",
+                fecha_devolucion: new Date()
             },
-
-            {
-                transaction
-            }
-
+            { transaction }
         );
-
-        await asignacion.destroy({ transaction });
+        
 
         await transaction.commit();
 
     } catch (error) {
 
         await transaction.rollback();
-
+        console.log(error);
         throw error;
-
     }
 
 };

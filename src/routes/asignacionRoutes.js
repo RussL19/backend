@@ -16,12 +16,21 @@ const {
 
 } = require("../controllers/asignacionController");
 
+const {
+    generarPDFAsignacion,
+    generarPDFDevolucion
+} = require("../controllers/AsignacionExportController");
+
 router.get("/", verificarToken, obtenerAsignaciones);
 
 router.get("/:id", verificarToken, obtenerAsignacionPorId);
 
 router.post("/", verificarToken, crearAsignacion);
 
-router.put("/devolver/:id", verificarToken, devolverActivo);
+router.put("/:id/devolver", verificarToken, devolverActivo);
+
+router.get("/:id/pdf",  generarPDFAsignacion);
+
+router.get("/:id/devolucion/pdf",  generarPDFDevolucion);
 
 module.exports = router;

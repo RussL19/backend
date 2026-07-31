@@ -55,15 +55,34 @@ const obtenerUsuarioPorId = async (id) => {
     return usuario;
 };
 
-const obtenerUsuarios = async () => {
+const obtenerUsuarios = async (page = 1, limit = 10) => {
 
-    const usuarios = await Usuario.findAll({
-        attributes: {
-            exclude: ["password_hash"]
-        }
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Usuario.findAndCountAll({
+
+        limit,
+
+        offset,
+
+        order: [
+            ["id_usuario", "ASC"]
+        ]
+
     });
 
-    return usuarios;
+    return {
+
+        total: count,
+
+        pagina: page,
+
+        totalPaginas: Math.ceil(count / limit),
+
+        datos: rows
+
+    };
+
 };
 
 const actualizarUsuario = async (id, datosUsuario) => {

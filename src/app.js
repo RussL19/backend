@@ -53,18 +53,72 @@ app.use("/api/activos", activoRoutes);
 const Activo = require("./models/Activo");
 const Proveedor = require("./models/Proveedor");
 const Mantenimiento = require("./models/Mantenimiento");
+const Categoria = require("./models/Categoria");
+const Ubicacion = require("./models/Ubicacion");
+const Asignacion = require("./models/Asignacion");
+const Empleado = require("./models/Empleado");
+const reporteExportRoutes = require("./routes/reporteExportRoutes");
+
+app.use("/api/reportes", reporteExportRoutes);
+
 Activo.hasMany(Mantenimiento,{
     foreignKey:"id_activo"
+});
+
+Activo.belongsTo(Categoria,{
+    foreignKey:"id_categoria"
+});
+
+Activo.belongsTo(Ubicacion,{
+    foreignKey:"id_ubicacion"
 });
 
 Mantenimiento.belongsTo(Activo,{
     foreignKey:"id_activo"
 });
 
+Mantenimiento.belongsTo(Proveedor, {
+    foreignKey: "id_proveedor"
+});
+
 Proveedor.hasMany(Mantenimiento,{
     foreignKey:"id_proveedor"
 });
+Categoria.hasMany(Activo, {
 
-Mantenimiento.belongsTo(Proveedor,{
-    foreignKey:"id_proveedor"
+    foreignKey: "id_categoria"
+
 });
+Ubicacion.hasMany(Activo, {
+
+    foreignKey: "id_ubicacion"
+
+});
+//---------------------------------------------------
+// Relación Activo - Asignación
+//---------------------------------------------------
+
+Activo.hasMany(Asignacion,{
+    foreignKey:"id_activo",
+    as:"Asignaciones"
+});
+
+Asignacion.belongsTo(Activo,{
+    foreignKey:"id_activo"
+});
+
+//---------------------------------------------------
+// Relación Empleado - Asignación
+//---------------------------------------------------
+
+Empleado.hasMany(Asignacion,{
+    foreignKey:"id_empleado"
+});
+
+Asignacion.belongsTo(Empleado,{
+    foreignKey:"id_empleado"
+});
+
+
+
+
