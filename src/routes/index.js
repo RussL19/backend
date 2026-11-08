@@ -15,6 +15,7 @@ const mantenimientoRoutes = require("./mantenimientoRoutes");
 const activoRoutes = require("./activoRoutes");
 const historialRoutes = require("./historialRoutes");
 const reporteRoutes = require("./reporteRoutes");
+const notificacionRoutes = require("./notificacionRoutes");
 
 router.use("/reportes", reporteRoutes);
 router.use("/activos", activoRoutes);
@@ -29,5 +30,6 @@ router.use("/categorias", categoriaRoutes);
 router.use("/roles", rolRoutes);
 router.use("/usuarios", usuarioRoutes);
 router.use("/", authRoutes);
+router.use("/notificaciones", notificacionRoutes);
 
 module.exports = router;

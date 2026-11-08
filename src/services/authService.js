@@ -2,11 +2,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Usuario = require("../models/Usuario");
 const nodemailer=require("nodemailer");
-const login = async (correo, password) => {
+const { authenticator } = require("otplib");
+const QRCode = require("qrcode");
 
-    const usuario = await Usuario.findOne({
-        where: { correo }
-    });
+const login = async (correo, password) => {
+    const usuario = await Usuario.findOne({ where: { correo } });
 
     if (!usuario) {
         throw new Error("Correo o contraseña incorrectos.");
@@ -25,18 +25,36 @@ const login = async (correo, password) => {
         throw new Error("Correo o contraseña incorrectos.");
     }
 
+    // Si tiene doble factor activado, todavía no entregar el JWT definitivo
+    if (usuario.two_factor_enabled) {
+        const challengeToken = jwt.sign(
+            {
+                id_usuario: usuario.id_usuario,
+                purpose: "2fa_login"
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "5m" }
+        );
+
+        return {
+            requiere2FA: true,
+            challengeToken,
+            mensaje: "Ingresa el código de Google Authenticator."
+        };
+    }
+
+    // Login normal para usuarios sin doble factor
     const token = jwt.sign(
         {
             id_usuario: usuario.id_usuario,
             id_rol: usuario.id_rol
         },
         process.env.JWT_SECRET,
-        {
-            expiresIn: "8h"
-        }
+        { expiresIn: "8h" }
     );
 
     return {
+        requiere2FA: false,
         usuario: {
             id_usuario: usuario.id_usuario,
             nombre_usuario: usuario.nombre_usuario,
@@ -45,8 +63,8 @@ const login = async (correo, password) => {
         },
         token
     };
-
 };
+
 
 const register = async (datos) => {
 
@@ -236,11 +254,145 @@ const resetPassword=async(token,password)=>{
 
 };
 
+// Generar QR para configurar Google Authenticator
+const configurar2FA = async (id_usuario) => {
+    const usuario = await Usuario.findByPk(id_usuario);
+
+    if (!usuario || !usuario.estado) {
+        throw new Error("Usuario no válido.");
+    }
+
+    if (usuario.two_factor_enabled) {
+        throw new Error("La autenticación de dos factores ya está activada.");
+    }
+
+    const secret = authenticator.generateSecret();
+
+    const otpauth = authenticator.keyuri(
+        usuario.correo,
+        "Sistema Gestion de Activos",
+        secret
+    );
+
+    const qr = await QRCode.toDataURL(otpauth);
+
+    // Guardar el secreto para verificar el código de confirmación.
+    // El segundo factor sigue desactivado hasta confirmar el código.
+    usuario.two_factor_secret = secret;
+    await usuario.save();
+
+    return {
+        qr,
+        secretoManual: secret,
+        mensaje: "Escanea el QR con Google Authenticator y confirma el código."
+    };
+};
+
+// Confirmar el código y activar Google Authenticator
+const confirmar2FA = async (id_usuario, codigo) => {
+    const usuario = await Usuario.findByPk(id_usuario);
+
+    if (!usuario || !usuario.estado) {
+        throw new Error("Usuario no válido.");
+    }
+
+    if (usuario.two_factor_enabled) {
+        throw new Error("La autenticación de dos factores ya está activada.");
+    }
+
+    if (!usuario.two_factor_secret) {
+        throw new Error("Primero debes solicitar la configuración del autenticador.");
+    }
+
+    const token = String(codigo || "").trim();
+
+    if (!/^\d{6}$/.test(token)) {
+        throw new Error("Ingresa un código válido de seis dígitos.");
+    }
+
+    const valido = authenticator.verify({
+        token,
+        secret: usuario.two_factor_secret,
+        window: 1
+    });
+
+    if (!valido) {
+        throw new Error("Código incorrecto o expirado. Inténtalo nuevamente.");
+    }
+
+    usuario.two_factor_enabled = true;
+    await usuario.save();
+
+    return {
+        mensaje: "Google Authenticator se activó correctamente."
+    };
+};
+
+
+const verificarCodigoLogin = async (challengeToken, codigo) => {
+    let datos;
+
+    try {
+        datos = jwt.verify(challengeToken, process.env.JWT_SECRET);
+    } catch (error) {
+        throw new Error("La solicitud expiró. Inicia sesión nuevamente.");
+    }
+
+    if (datos.purpose !== "2fa_login" || !datos.id_usuario) {
+        throw new Error("Token de verificación no válido.");
+    }
+
+    const usuario = await Usuario.findByPk(datos.id_usuario);
+
+    if (!usuario || !usuario.estado || !usuario.two_factor_enabled) {
+        throw new Error("Usuario no válido o doble factor desactivado.");
+    }
+
+    const tokenIngresado = String(codigo || "").trim();
+
+    if (!/^\d{6}$/.test(tokenIngresado)) {
+        throw new Error("Ingresa un código de seis dígitos.");
+    }
+
+    const valido = authenticator.verify({
+        token: tokenIngresado,
+        secret: usuario.two_factor_secret,
+        window: 1
+    });
+
+    if (!valido) {
+        throw new Error("Código incorrecto o expirado.");
+    }
+
+    const token = jwt.sign(
+        {
+            id_usuario: usuario.id_usuario,
+            id_rol: usuario.id_rol
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "8h" }
+    );
+
+    return {
+        usuario: {
+            id_usuario: usuario.id_usuario,
+            nombre_usuario: usuario.nombre_usuario,
+            correo: usuario.correo,
+            id_rol: usuario.id_rol
+        },
+        token
+    };
+};
+
+
 module.exports = {
     login,
     register,
     recuperarPassword,
-    resetPassword
+    resetPassword,
+    configurar2FA,
+    confirmar2FA,
+    verificarCodigoLogin
 };
 
 

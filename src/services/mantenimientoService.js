@@ -1,186 +1,260 @@
+
 const sequelize = require("../config/database");
 
 const Mantenimiento = require("../models/Mantenimiento");
 const Activo = require("../models/Activo");
 const Proveedor = require("../models/Proveedor");
+const Asignacion = require("../models/Asignacion");
+const Empleado = require("../models/Empleado");
+const Usuario = require("../models/Usuario");
 const HistorialMovimiento = require("../models/HistorialMovimiento");
 
-const crearMantenimiento = async (datos)=>{
+const {
+    enviarNotificacionAUsuario
+} = require("./notificacionService");
 
-    const transaction = await sequelize.transaction();
 
-    try{
+// Notificar al empleado que tiene asignado el activo.
+const notificarEmpleadoAsignado = async (
+    idActivo,
+    titulo,
+    cuerpo
+) => {
+    try {
+        const asignacion = await Asignacion.findOne({
+            where: {
+                id_activo: idActivo,
+                estado: "Asignado"
+            },
+            order: [
+                ["fecha_asignacion", "DESC"]
+            ]
+        });
 
-        const activo = await Activo.findByPk(
-            datos.id_activo,
-            {transaction}
+        if (!asignacion) {
+            console.log(
+                `El activo ${idActivo} no tiene una asignación activa.`
+            );
+            return;
+        }
+
+        const empleado = await Empleado.findByPk(
+            asignacion.id_empleado
         );
 
-        if(!activo){
+        if (!empleado?.correo) {
+            console.warn("No se encontró el correo del empleado.");
+            return;
+        }
+
+        const usuario = await Usuario.findOne({
+            where: {
+                correo: empleado.correo.trim()
+            }
+        });
+
+        if (!usuario) {
+            console.warn(
+                `No existe una cuenta para ${empleado.correo}.`
+            );
+            return;
+        }
+
+        await enviarNotificacionAUsuario(
+            usuario.id_usuario,
+            titulo,
+            cuerpo
+        );
+
+    } catch (error) {
+        console.error(
+            "No se pudo enviar la notificación de mantenimiento:",
+            error.message
+        );
+    }
+};
+
+
+// Crear mantenimiento
+const crearMantenimiento = async (datos) => {
+    const transaction = await sequelize.transaction();
+
+    try {
+        const activo = await Activo.findByPk(
+            datos.id_activo,
+            { transaction }
+        );
+
+        if (!activo) {
             throw new Error("Activo no encontrado.");
         }
 
         const proveedor = await Proveedor.findByPk(
             datos.id_proveedor,
-            {transaction}
+            { transaction }
         );
 
-        if(!proveedor){
+        if (!proveedor) {
             throw new Error("Proveedor no encontrado.");
         }
 
         const mantenimiento = await Mantenimiento.create(
             datos,
-            {transaction}
+            { transaction }
         );
 
         await activo.update(
             {
-                estado:"Mantenimiento"
+                estado: "Mantenimiento"
             },
-            {transaction}
+            { transaction }
         );
 
-        await HistorialMovimiento.create({
-
-            id_activo:activo.id_activo,
-
-            tipo_movimiento:"Mantenimiento",
-
-            detalle:`Ingreso a mantenimiento (${datos.tipo})`
-
-        },{transaction});
+        await HistorialMovimiento.create(
+            {
+                id_activo: activo.id_activo,
+                tipo_movimiento: "Mantenimiento",
+                detalle: `Ingreso a mantenimiento (${datos.tipo})`
+            },
+            { transaction }
+        );
 
         await transaction.commit();
 
+        // Avisar al empleado que tiene asignado el activo.
+        await notificarEmpleadoAsignado(
+            activo.id_activo,
+            "Activo ingresado a mantenimiento",
+            `El activo ${activo.nombre} (${activo.codigo}) ingresó a mantenimiento.`
+        );
+
         return mantenimiento;
 
-    }catch(error){
-
-        await transaction.rollback();
+    } catch (error) {
+        if (!transaction.finished) {
+            await transaction.rollback();
+        }
 
         throw error;
-
     }
-
 };
 
-const obtenerMantenimientos = async ()=>{
 
+// Obtener mantenimientos
+const obtenerMantenimientos = async () => {
     return await Mantenimiento.findAll({
-
-        include:[
-
+        include: [
             {
-                model:Activo,
-                attributes:[
+                model: Activo,
+                attributes: [
                     "codigo",
                     "nombre"
                 ]
             },
-
             {
-                model:Proveedor,
-                attributes:[
+                model: Proveedor,
+                attributes: [
                     "nombre"
                 ]
             }
-
         ],
 
-        order:[
-            ["fecha_inicio","DESC"]
+        order: [
+            ["fecha_inicio", "DESC"]
         ]
-
     });
-
 };
 
-const obtenerMantenimientoPorId = async(id)=>{
 
-    const mantenimiento = await Mantenimiento.findByPk(id,{
-
-        include:[
-
-            {model:Activo},
-
-            {model:Proveedor}
-
+// Obtener mantenimiento por ID
+const obtenerMantenimientoPorId = async (id) => {
+    const mantenimiento = await Mantenimiento.findByPk(id, {
+        include: [
+            { model: Activo },
+            { model: Proveedor }
         ]
-
     });
 
-    if(!mantenimiento){
-
+    if (!mantenimiento) {
         throw new Error("Mantenimiento no encontrado.");
-
     }
 
     return mantenimiento;
-
 };
 
-const finalizarMantenimiento = async(id)=>{
 
+// Finalizar mantenimiento
+const finalizarMantenimiento = async (id) => {
     const transaction = await sequelize.transaction();
 
-    try{
+    let idActivo;
 
-        const mantenimiento = await Mantenimiento.findByPk(id,{transaction});
+    try {
+        const mantenimiento = await Mantenimiento.findByPk(
+            id,
+            { transaction }
+        );
 
-        if(!mantenimiento){
-
+        if (!mantenimiento) {
             throw new Error("Mantenimiento no encontrado.");
-
         }
 
         const activo = await Activo.findByPk(
             mantenimiento.id_activo,
-            {transaction}
+            { transaction }
         );
 
-        await mantenimiento.update({
+        if (!activo) {
+            throw new Error("Activo no encontrado.");
+        }
 
-            fecha_fin:new Date()
+        idActivo = activo.id_activo;
 
-        },{transaction});
+        await mantenimiento.update(
+            {
+                fecha_fin: new Date()
+            },
+            { transaction }
+        );
 
-        await activo.update({
+        await activo.update(
+            {
+                estado: "Disponible"
+            },
+            { transaction }
+        );
 
-            estado:"Disponible"
-
-        },{transaction});
-
-        await HistorialMovimiento.create({
-
-            id_activo:activo.id_activo,
-
-            tipo_movimiento:"Mantenimiento",
-
-            detalle:"Mantenimiento finalizado"
-
-        },{transaction});
+        await HistorialMovimiento.create(
+            {
+                id_activo: activo.id_activo,
+                tipo_movimiento: "Mantenimiento",
+                detalle: "Mantenimiento finalizado"
+            },
+            { transaction }
+        );
 
         await transaction.commit();
 
-    }catch(error){
+        // Avisar al empleado que tiene asignado el activo.
+        await notificarEmpleadoAsignado(
+            idActivo,
+            "Mantenimiento finalizado",
+            `El mantenimiento del activo ${activo.nombre} (${activo.codigo}) ha finalizado y ahora está disponible.`
+        );
 
-        await transaction.rollback();
+    } catch (error) {
+        if (!transaction.finished) {
+            await transaction.rollback();
+        }
 
         throw error;
-
     }
-
 };
 
-module.exports={
 
+module.exports = {
     crearMantenimiento,
-
     obtenerMantenimientos,
-
     obtenerMantenimientoPorId,
-
     finalizarMantenimiento
-
 };

@@ -1,5 +1,11 @@
 const Activo = require("../models/Activo");
+const Asignacion = require("../models/Asignacion");
+const Empleado = require("../models/Empleado");
+const Usuario = require("../models/Usuario");
 
+const {
+    enviarNotificacionAUsuario
+} = require("./notificacionService");
 // ==========================
 // Obtener todos los activos
 // ==========================
@@ -11,6 +17,97 @@ const obtenerActivos = async () => {
 
     return activos;
 
+};
+
+// ==========================================
+// Notificar cambios de estado de los activos
+// ==========================================
+const notificarCambioEstado = async (
+    activo,
+    estadoAnterior,
+    estadoNuevo
+) => {
+
+    try {
+
+        const destinatarios = new Set();
+
+        // Obtener administradores activos
+        const administradores = await Usuario.findAll({
+            where: {
+                id_rol: 1,
+                estado: true
+            },
+            attributes: ["id_usuario"]
+        });
+
+        administradores.forEach(usuario => {
+            destinatarios.add(usuario.id_usuario);
+        });
+
+        // Buscar la asignación activa del activo
+        const asignacion = await Asignacion.findOne({
+            where: {
+                id_activo: activo.id_activo,
+                estado: "Asignado"
+            },
+            order: [
+                ["fecha_asignacion", "DESC"]
+            ]
+        });
+
+        // Identificar al empleado responsable
+        if (asignacion) {
+
+            const empleado = await Empleado.findByPk(
+                asignacion.id_empleado
+            );
+
+            if (empleado?.correo) {
+
+                const usuario = await Usuario.findOne({
+                    where: {
+                        correo: empleado.correo.trim()
+                    }
+                });
+
+                if (usuario && usuario.estado) {
+                    destinatarios.add(usuario.id_usuario);
+                }
+            }
+        }
+
+        // Preparar el mensaje
+        const titulo = "Cambio de estado de activo";
+
+        const cuerpo =
+            `El activo ${activo.nombre} (${activo.codigo}) ` +
+            `cambió de estado: ${estadoAnterior} a ${estadoNuevo}.`;
+
+        // Enviar a todos los destinatarios
+        const resultados = await Promise.allSettled(
+            Array.from(destinatarios).map(idUsuario =>
+                enviarNotificacionAUsuario(
+                    idUsuario,
+                    titulo,
+                    cuerpo
+                )
+            )
+        );
+
+        console.log(
+            `Notificaciones de cambio de estado procesadas para el activo ${activo.codigo}:`,
+            resultados.length
+        );
+
+    } catch (error) {
+
+        // Un problema de Firebase no debe cancelar la actualización
+        console.error(
+            "Error enviando notificación de cambio de estado:",
+            error.message
+        );
+    }
 };
 
 // ==========================
@@ -76,6 +173,9 @@ const actualizarActivo = async (id, datosActivo) => {
         throw new Error("Activo no encontrado.");
     }
 
+    // Guardar el estado anterior
+    const estadoAnterior = activo.estado;
+
     // Verificar código duplicado
     const codigoExistente = await Activo.findOne({
         where: {
@@ -90,6 +190,7 @@ const actualizarActivo = async (id, datosActivo) => {
         throw new Error("El código del activo ya existe.");
     }
 
+    // Actualizar información del activo
     await activo.update({
 
         codigo: datosActivo.codigo,
@@ -106,6 +207,22 @@ const actualizarActivo = async (id, datosActivo) => {
         id_ubicacion: datosActivo.id_ubicacion
 
     });
+
+    // Verificar si realmente cambió el estado
+    const estadoNuevo = activo.estado;
+
+    if (
+        estadoNuevo &&
+        estadoAnterior !== estadoNuevo
+    ) {
+
+        await notificarCambioEstado(
+            activo,
+            estadoAnterior,
+            estadoNuevo
+        );
+
+    }
 
     return activo;
 

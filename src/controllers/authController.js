@@ -38,54 +38,100 @@ const register = async (req, res) => {
 
 };
 
-const recuperarPassword = async (req,res)=>{
+const recuperarPassword = async (req, res) => {
 
-    try{
+    try {
 
         await authService.recuperarPassword(req.body.correo);
 
         res.json({
-            mensaje:"Se envió un correo para recuperar la contraseña."
+            mensaje: "Se envió un correo para recuperar la contraseña."
         });
 
-    }catch(error){
-            console.error("ERROR RECUPERAR PASSWORD");
+    } catch (error) {
+        console.error("ERROR RECUPERAR PASSWORD");
         console.error(error);
 
         res.status(400).json({
-            mensaje:error.message
+            mensaje: error.message
         });
 
     }
 
 };
 
-const resetPassword = async(req,res)=>{
+const resetPassword = async (req, res) => {
 
-    try{
+    try {
 
-        const {token,password}=req.body;
+        const { token, password } = req.body;
 
-        await authService.resetPassword(token,password);
+        await authService.resetPassword(token, password);
 
         res.json({
-            mensaje:"Contraseña actualizada correctamente."
+            mensaje: "Contraseña actualizada correctamente."
         });
 
-    }catch(error){
+    } catch (error) {
 
         res.status(400).json({
-            mensaje:error.message
+            mensaje: error.message
         });
 
     }
 
 }
+const configurar2FA = async (req, res) => {
+    try {
+        const respuesta = await authService.configurar2FA(
+            req.usuario.id_usuario
+        );
+
+        res.json(respuesta);
+    } catch (error) {
+        res.status(400).json({ mensaje: error.message });
+    }
+};
+
+const confirmar2FA = async (req, res) => {
+    try {
+        const respuesta = await authService.confirmar2FA(
+            req.usuario.id_usuario,
+            req.body.codigo
+        );
+
+        res.json(respuesta);
+    } catch (error) {
+        res.status(400).json({ mensaje: error.message });
+    }
+};
+
+
+const verificarCodigoLogin = async (req, res) => {
+    try {
+        const { challengeToken, codigo } = req.body;
+
+        const respuesta = await authService.verificarCodigoLogin(
+            challengeToken,
+            codigo
+        );
+
+        res.json(respuesta);
+    } catch (error) {
+        res.status(401).json({
+            mensaje: error.message
+        });
+    }
+};
+
 
 
 module.exports = {
     login,
     register,
     recuperarPassword,
-    resetPassword
+    resetPassword,
+    configurar2FA,
+    confirmar2FA,
+    verificarCodigoLogin
 };

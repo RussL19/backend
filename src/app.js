@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+require("./config/firebaseAdmin");
 
 const sequelize = require("./config/database");
 
@@ -57,6 +58,8 @@ const Categoria = require("./models/Categoria");
 const Ubicacion = require("./models/Ubicacion");
 const Asignacion = require("./models/Asignacion");
 const Empleado = require("./models/Empleado");
+const Usuario = require("./models/Usuario");
+const Dispositivo = require("./models/Dispositivo");
 const reporteExportRoutes = require("./routes/reporteExportRoutes");
 
 app.use("/api/reportes", reporteExportRoutes);
@@ -120,5 +123,22 @@ Asignacion.belongsTo(Empleado,{
 });
 
 
+//---------------------------------------------------
+// Relación Usuario - Dispositivo
+//---------------------------------------------------
 
+Usuario.hasMany(Dispositivo, {
+    foreignKey: "id_usuario",
+    as: "dispositivos"
+});
 
+Dispositivo.belongsTo(Usuario, {
+    foreignKey: "id_usuario",
+    as: "usuario"
+});
+
+// Iniciar recordatorios automáticos de mantenimiento
+const iniciarRecordatoriosMantenimiento =
+    require("./jobs/mantenimientoReminderJob");
+
+iniciarRecordatoriosMantenimiento();

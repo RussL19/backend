@@ -34,17 +34,27 @@ const Mantenimiento = sequelize.define("Mantenimiento", {
     },
 
     costo: {
-        type: DataTypes.DECIMAL(10,2)
+        type: DataTypes.DECIMAL(10, 2)
     },
 
     descripcion: {
         type: DataTypes.TEXT
+    },
+    recordatorio_enviado: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+
+    fecha_recordatorio_enviado: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 
-},{
+}, {
 
-    tableName:"mantenimientos",
-    timestamps:false
+    tableName: "mantenimientos",
+    timestamps: false
 
 });
 

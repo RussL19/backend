@@ -26,6 +26,16 @@ const Usuario = sequelize.define(
             type: DataTypes.STRING(255),
             allowNull: false
         },
+        two_factor_enabled: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
+        },
+
+        two_factor_secret: {
+            type: DataTypes.STRING(255),
+            allowNull: true
+        },
 
         estado: {
             type: DataTypes.BOOLEAN,
@@ -37,13 +47,13 @@ const Usuario = sequelize.define(
             allowNull: false
         },
         reset_token: {
-             type: DataTypes.STRING
+            type: DataTypes.STRING
         },
 
         reset_expira: {
             type: DataTypes.DATE
         },
-        },
+    },
     {
         tableName: "usuarios",
         timestamps: false
