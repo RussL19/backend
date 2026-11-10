@@ -184,22 +184,30 @@ const obtenerMantenimientoPorId = async (id) => {
 
 
 // Finalizar mantenimiento
-const finalizarMantenimiento = async (id) => {
+
+const finalizarMantenimiento = async (id, estadoActivo) => {
+    if (!["Disponible", "Baja"].includes(estadoActivo)) {
+        throw new Error("Resultado del mantenimiento no válido.");
+    }
+
     const transaction = await sequelize.transaction();
 
-    let idActivo;
+    let activo;
 
     try {
-        const mantenimiento = await Mantenimiento.findByPk(
-            id,
-            { transaction }
-        );
+        const mantenimiento = await Mantenimiento.findByPk(id, {
+            transaction
+        });
 
         if (!mantenimiento) {
             throw new Error("Mantenimiento no encontrado.");
         }
 
-        const activo = await Activo.findByPk(
+        if (mantenimiento.fecha_fin) {
+            throw new Error("Este mantenimiento ya fue finalizado.");
+        }
+
+        activo = await Activo.findByPk(
             mantenimiento.id_activo,
             { transaction }
         );
@@ -208,39 +216,36 @@ const finalizarMantenimiento = async (id) => {
             throw new Error("Activo no encontrado.");
         }
 
-        idActivo = activo.id_activo;
+        const fechaFinalizacion = new Date()
+            .toISOString()
+            .slice(0, 10);
 
         await mantenimiento.update(
-            {
-                fecha_fin: new Date()
-            },
+            { fecha_fin: fechaFinalizacion },
             { transaction }
         );
 
         await activo.update(
-            {
-                estado: "Disponible"
-            },
+            { estado: estadoActivo },
             { transaction }
         );
 
         await HistorialMovimiento.create(
             {
                 id_activo: activo.id_activo,
-                tipo_movimiento: "Mantenimiento",
-                detalle: "Mantenimiento finalizado"
+                tipo_movimiento:
+                    estadoActivo === "Baja"
+                        ? "Baja"
+                        : "Mantenimiento",
+                detalle:
+                    estadoActivo === "Baja"
+                        ? "Mantenimiento finalizado: activo dado de baja."
+                        : "Mantenimiento finalizado: activo disponible."
             },
             { transaction }
         );
 
         await transaction.commit();
-
-        // Avisar al empleado que tiene asignado el activo.
-        await notificarEmpleadoAsignado(
-            idActivo,
-            "Mantenimiento finalizado",
-            `El mantenimiento del activo ${activo.nombre} (${activo.codigo}) ha finalizado y ahora está disponible.`
-        );
 
     } catch (error) {
         if (!transaction.finished) {
@@ -249,7 +254,33 @@ const finalizarMantenimiento = async (id) => {
 
         throw error;
     }
+
+    // Notificación después de confirmar los cambios en MySQL
+    try {
+        const mensaje =
+            estadoActivo === "Baja"
+                ? `El activo ${activo.nombre} (${activo.codigo}) fue dado de baja después del mantenimiento.`
+                : `El mantenimiento del activo ${activo.nombre} (${activo.codigo}) ha finalizado y ahora está disponible.`;
+
+        await notificarEmpleadoAsignado(
+            activo.id_activo,
+            "Mantenimiento finalizado",
+            mensaje
+        );
+
+    } catch (error) {
+        console.error(
+            "El mantenimiento finalizó, pero falló la notificación:",
+            error.message
+        );
+    }
+
+    return {
+        mensaje: "Mantenimiento finalizado correctamente.",
+        estadoActivo
+    };
 };
+
 
 
 module.exports = {

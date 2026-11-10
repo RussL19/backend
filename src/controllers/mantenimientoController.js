@@ -55,23 +55,22 @@ const crearMantenimiento = async (req, res) => {
 };
 
 const finalizarMantenimiento = async (req, res) => {
-
     try {
+        const resultado =
+            await mantenimientoService.finalizarMantenimiento(
+                req.params.id,
+                req.body.estadoActivo
+            );
 
-        await mantenimientoService.finalizarMantenimiento(req.params.id);
-
-        res.json({
-            mensaje: "Mantenimiento finalizado correctamente."
-        });
+        return res.json(resultado);
 
     } catch (error) {
+        console.error("Error al finalizar mantenimiento:", error);
 
-        res.status(400).json({
+        return res.status(400).json({
             mensaje: error.message
         });
-
     }
-
 };
 
 module.exports = {
